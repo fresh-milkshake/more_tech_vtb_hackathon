@@ -1,12 +1,16 @@
-import os
 import re
 import markitdown
+
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
 from sentence_transformers import SentenceTransformer, util
 from openai import OpenAI
 
-# парсинг резюме
+# парсинг документов
 
-def parse_resume(path: str) -> str:
+def parse_document(path: str) -> str:
     md = markitdown.MarkItDown()
 
     output = md.convert(path)
@@ -25,31 +29,29 @@ def match_resume_vacancy(resume: str, vacancy: str) -> float:
 
 # сравнение резюме с вакансией (LLM)
 
-client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+SKILLS_DICT = os.getenv('SKILLS_DICT')
+KEY = os.getenv('OPENAI_API_NIKITA')
 
-def match_with_llm(resume: str, vacancy: str) -> float:
+client = OpenAI(api_key=KEY)
+
+def match_resume_vacancy_llm(resume: str, vacancy: str) -> float:
     prompt = f"""
             Ты HR-специалист. Оцени, насколько данное резюме соответствует вакансии.
-            Верни только число от 0 до 100 (процент соответствия).
-
+            Поставь оценку от 0 до 100 и расскажи подробно, почему именно такую оценку ты поставил.
+            Сделай ответ максимально кратким. Без форматирования и перечислений.
             Резюме:
             {resume}
-
             Вакансия:
             {vacancy}
-    """
+            """
     
     response = client.chat.completions.create(
-        model='gpt-4o-mini',
-        messages=[{'role': 'user', 'content': prompt}],
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
         temperature=0
     )
     
-    score = response.choices[0].message.content.strip()
-    try:
-        return float(score)
-    except:
-        return None
+    return response.choices[0].message.content
     
 # проверка навыков
 
@@ -57,7 +59,7 @@ def extract_skills(text: str):
     lower_text = text.lower()
     skills = set()
     
-    for skill in os.getenv('SKILLS_DICT'):
+    for skill in SKILLS_DICT:
         if re.search(r'\b' + re.escape(skill) + r'\b', lower_text):
             skills.add(skill)
     return skills
@@ -86,24 +88,47 @@ def extract_skills_llm(text: str):
     """
     response = client.chat.completions.create(
         model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0
+        messages=[{"role": "user", "content": prompt}]
     )
-    try:
-        return set(eval(response.choices[0].message.content.strip()))
-    except:
-        return set()
+    return response.choices[0].message.content
 
 def match_skills_llm(resume_text: str, job_text: str):
     resume_skills = extract_skills_llm(resume_text)
     job_skills = extract_skills_llm(job_text)
-
-    intersection = resume_skills & job_skills
-    coverage = len(intersection) / len(job_skills) * 100 if job_skills else 0
-
-    return {
-        "resume_skills": resume_skills,
-        "job_skills": job_skills,
-        "matched": intersection,
-        "coverage_percent": round(coverage, 2)
-    }
+    
+    prompt = f"""
+            Сравни на сколько совпадают навыки, требуемые для вакансии с навыками в резюме.
+            Ответь насколько совпадают навыки от 0 до 100 и скажи каких навыков не хватает.
+            Ответ сделай кратким, без пунктов и форматирования. Не нужно добавлять пояснения к кждому пункту.
+            Если навыки не совпадают один в один, но их смысл одинаковый, не упоминай их.
+            Навыки из резюме:
+            {resume_skills}
+            Навыки из вакансии:
+            {job_skills}
+            """
+    
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0
+    )
+    
+    return response.choices[0].message.content
+    
+if __name__ == '__main__':
+    print("TESTING...")
+    
+    print('#'*30)
+    
+    print('---noLLM pipeline---')
+    print("Matching resume: ")
+    print(match_resume_vacancy(parse_document('/home/andrewbolgoff/programs/more_tech_vtb_hackathon/src/backend/data/test_resume.docx'), parse_document('/home/andrewbolgoff/programs/more_tech_vtb_hackathon/src/backend/data/test_vacancy.docx')))
+    print("Matching skills: ")
+    print(match_skills(parse_document('/home/andrewbolgoff/programs/more_tech_vtb_hackathon/src/backend/data/test_resume.docx'), parse_document('/home/andrewbolgoff/programs/more_tech_vtb_hackathon/src/backend/data/test_vacancy.docx')))
+    
+    print('#'*30)
+    print('---LLM pipeline---')
+    print("Matching resume: ")
+    print(match_resume_vacancy_llm(parse_document('/home/andrewbolgoff/programs/more_tech_vtb_hackathon/src/backend/data/test_resume.docx'), parse_document('/home/andrewbolgoff/programs/more_tech_vtb_hackathon/src/backend/data/test_vacancy.docx')))
+    print("Matching skills: ")
+    print(match_skills_llm(parse_document('/home/andrewbolgoff/programs/more_tech_vtb_hackathon/src/backend/data/test_resume.docx'), parse_document('/home/andrewbolgoff/programs/more_tech_vtb_hackathon/src/backend/data/test_vacancy.docx')))
