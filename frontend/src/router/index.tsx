@@ -2,9 +2,14 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { Suspense } from 'react';
 import { AuthLayout } from '@/layouts/auth-layout';
 import { Layout } from '@/layouts/main-layout';
-import { AuthPage } from '@/pages/Auth';
-import { HomePage } from '@/pages/Home';
+import { AuthPage } from '@/pages/auth';
+import { HomePage } from '@/pages/home';
 import { Loader } from '@/components/common/loader';
+import AuthProtectedRoute from './auth-protected-route';
+import ProtectedRoute from './protected-route';
+import { VacanciesPage } from '@/pages/vacancies';
+import { CandidatesPage } from '@/pages/candidates';
+import { InterviewsPage } from '@/pages/interviews';
 
 const router = createBrowserRouter([
   {
@@ -15,7 +20,9 @@ const router = createBrowserRouter([
         index: true,
         element: (
           <Suspense fallback={<Loader />}>
-            <AuthPage />
+            <AuthProtectedRoute>
+              <AuthPage />
+            </AuthProtectedRoute>
           </Suspense>
         ),
       },
@@ -29,7 +36,39 @@ const router = createBrowserRouter([
         index: true,
         element: (
           <Suspense fallback={<Loader />}>
-            <HomePage />
+            <ProtectedRoute>
+              <HomePage />
+            </ProtectedRoute>
+          </Suspense>
+        ),
+      },
+      {
+        path: '/vacancies',
+        element: (
+          <Suspense fallback={<Loader />}>
+            <ProtectedRoute>
+              <VacanciesPage />
+            </ProtectedRoute>
+          </Suspense>
+        ),
+      },
+      {
+        path: '/candidates',
+        element: (
+          <Suspense fallback={<Loader />}>
+            <ProtectedRoute>
+              <CandidatesPage />
+            </ProtectedRoute>
+          </Suspense>
+        ),
+      },
+      {
+        path: '/interviews',
+        element: (
+          <Suspense fallback={<Loader />}>
+            <ProtectedRoute>
+              <InterviewsPage />
+            </ProtectedRoute>
           </Suspense>
         ),
       },
