@@ -1,4 +1,9 @@
-export enum LocalStorageNames {
-  TOKEN = 'token',
-  REFRESH_TOKEN = 'refresh_token',
+export interface IUser {
+  id: number;
+  email: string;
+  full_name: string;
+  is_active: boolean;
+  is_superuser: boolean;
+  created_at: string;
+  updated_at: string;
 }
