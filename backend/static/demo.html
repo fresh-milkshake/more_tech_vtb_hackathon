@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HR Avatar - Real-time Audio Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            color: #333;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            color: #666;
+            font-size: 1.1em;
+        }
+        
+        .demo-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        
+        .section {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 25px;
+            border: 2px solid #e9ecef;
+            transition: all 0.3s ease;
+        }
+        
+        .section:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+        }
+        
+        .section h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            margin: 5px;
+            min-width: 120px;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .btn.recording {
+            background: linear-gradient(45deg, #ff4757, #ff3838);
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        .transcription-box, .audio-controls, .status-box {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            min-height: 120px;
+        }
+        
+        .transcription-box {
+            font-family: monospace;
+            white-space: pre-wrap;
+            overflow-y: auto;
+            max-height: 200px;
+        }
+        
+        .status-box {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+        }
+        
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 0;
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .status-label {
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .status-value {
+            color: #666;
+        }
+        
+        .status-value.connected {
+            color: #28a745;
+        }
+        
+        .status-value.disconnected {
+            color: #dc3545;
+        }
+        
+        .logs {
+            background: #2d3748;
+            color: #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+            font-family: 'Courier New', monospace;
+            max-height: 300px;
+            overflow-y: auto;
+            font-size: 14px;
+        }
+        
+        .log-entry {
+            margin: 5px 0;
+            padding: 3px 0;
+        }
+        
+        .log-timestamp {
+            color: #a0aec0;
+        }
+        
+        .log-type-info { color: #63b3ed; }
+        .log-type-error { color: #f56565; }
+        .log-type-success { color: #68d391; }
+        .log-type-warning { color: #f6e05e; }
+        
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        .audio-visualizer {
+            width: 100%;
+            height: 60px;
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            margin: 10px 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+        }
+        
+        .recording-indicator {
+            display: none;
+            color: #ff4757;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        
+        .recording-indicator.active {
+            display: inline;
+            animation: blink 1s infinite;
+        }
+        
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+        
+        textarea {
+            width: 100%;
+            min-height: 100px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-family: inherit;
+            resize: vertical;
+        }
+        
+        .full-width {
+            grid-column: 1 / -1;
+        }
+        
+        @media (max-width: 768px) {
+            .demo-section {
+                grid-template-columns: 1fr;
+            }
+            
+            .container {
+                padding: 20px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎤 HR Avatar - Real-time Audio Demo</h1>
+            <p>Демонстрация WebSocket соединения, Speech-to-Text и Text-to-Speech</p>
+        </div>
+        
+        <div class="demo-section">
+            <!-- WebSocket Connection Section -->
+            <div class="section">
+                <h2>🔌 WebSocket Соединение</h2>
+                <button id="connectBtn" class="btn">🔌 Подключиться</button>
+                <button id="disconnectBtn" class="btn" disabled>❌ Отключиться</button>
+                <button id="heartbeatBtn" class="btn" disabled>💓 Heartbeat</button>
+                
+                <div class="status-box">
+                    <div class="status-item">
+                        <span class="status-label">Статус:</span>
+                        <span id="wsStatus" class="status-value disconnected">Отключено</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Протокол:</span>
+                        <span id="protocol" class="status-value">HTTP (ws://)</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Отправлено:</span>
+                        <span id="messagesSent" class="status-value">0</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Получено:</span>
+                        <span id="messagesReceived" class="status-value">0</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Последняя активность:</span>
+                        <span id="lastActivity" class="status-value">-</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Audio Recording Section -->
+            <div class="section">
+                <h2>🎤 Запись Аудио (STT)</h2>
+                <button id="startRecordingBtn" class="btn" disabled>🎤 Начать запись</button>
+                <button id="stopRecordingBtn" class="btn recording" disabled>⏹️ Остановить</button>
+                <button id="clearTranscriptionBtn" class="btn">🗑️ Очистить</button>
+                
+                <div class="progress-bar">
+                    <div id="recordingProgress" class="progress-fill"></div>
+                </div>
+                
+                <div class="audio-visualizer" id="audioVisualizer">
+                    <span>🎵 Аудио визуализатор</span>
+                    <span class="recording-indicator" id="recordingIndicator">● ЗАПИСЬ</span>
+                </div>
+                
+                <div class="transcription-box" id="transcriptionBox">
+                    Транскрипция будет отображаться здесь...
+                </div>
+            </div>
+        </div>
+        
+        <div class="demo-section">
+            <!-- Text-to-Speech Section -->
+            <div class="section">
+                <h2>🗣️ Text-to-Speech (TTS)</h2>
+                <textarea id="textToSpeakArea" placeholder="Введите текст для генерации речи..."></textarea>
+                <button id="generateSpeechBtn" class="btn">🗣️ Генерировать речь</button>
+                <button id="playGeneratedBtn" class="btn" disabled>▶️ Воспроизвести</button>
+                <button id="stopPlaybackBtn" class="btn" disabled>⏹️ Остановить</button>
+                
+                <div class="audio-controls">
+                    <div id="ttsStatus">Готов к генерации речи...</div>
+                </div>
+                
+                <div class="audio-visualizer" id="playbackVisualizer">
+                    <span>🔊 Воспроизведение аудио</span>
+                </div>
+            </div>
+            
+            <!-- System Status Section -->
+            <div class="section">
+                <h2>📊 Статус Системы</h2>
+                <div class="status-box">
+                    <div class="status-item">
+                        <span class="status-label">WebSocket:</span>
+                        <span id="wsSystemStatus" class="status-value disconnected">Не подключен</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Аудио API:</span>
+                        <span id="audioApiStatus" class="status-value">Проверка...</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Запись:</span>
+                        <span id="recordingStatus" class="status-value">Готов</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Воспроизведение:</span>
+                        <span id="playbackStatus" class="status-value">Готов</span>
+                    </div>
+                </div>
+                
+                <button id="clearLogs" class="btn">🧹 Очистить логи</button>
+            </div>
+        </div>
+        
+        <!-- Logs Section -->
+        <div class="section full-width">
+            <h2>📋 Логи в реальном времени</h2>
+            <div class="logs" id="logs">
+                <div class="log-entry">
+                    <span class="log-timestamp">[00:00:00]</span>
+                    <span class="log-type-info">Система инициализирована. Готов к работе.</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class RealtimeAudioDemo {
+            constructor() {
+                this.ws = null;
+                this.mediaRecorder = null;
+                this.audioChunks = [];
+                this.isRecording = false;
+                this.recordingStartTime = null;
+                this.recordingProgressInterval = null;
+                this.messagesSent = 0;
+                this.messagesReceived = 0;
+                this.generatedAudioUrl = null;
+                this.currentAudio = null;
+                
+                // WebSocket URL
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const host = window.location.host;
+                this.wsUrl = `${protocol}//${host}/ws/demo_interview_001`;
+                
+                this.init();
+            }
+            
+            init() {
+                this.bindElements();
+                this.bindEvents();
+                this.checkAudioSupport();
+                this.log('info', 'Система инициализирована. Готов к работе.');
+            }
+            
+            bindElements() {
+                // WebSocket elements
+                this.connectBtn = document.getElementById('connectBtn');
+                this.disconnectBtn = document.getElementById('disconnectBtn');
+                this.heartbeatBtn = document.getElementById('heartbeatBtn');
+                
+                // Recording elements
+                this.startRecordingBtn = document.getElementById('startRecordingBtn');
+                this.stopRecordingBtn = document.getElementById('stopRecordingBtn');
+                this.clearTranscriptionBtn = document.getElementById('clearTranscriptionBtn');
+                this.recordingIndicator = document.getElementById('recordingIndicator');
+                
+                // TTS elements
+                this.textToSpeakArea = document.getElementById('textToSpeakArea');
+                this.generateSpeechBtn = document.getElementById('generateSpeechBtn');
+                this.playGeneratedBtn = document.getElementById('playGeneratedBtn');
+                this.stopPlaybackBtn = document.getElementById('stopPlaybackBtn');
+                
+                // Status elements
+                this.wsStatusEl = document.getElementById('wsStatus');
+                this.protocolEl = document.getElementById('protocol');
+                this.messagesSentEl = document.getElementById('messagesSent');
+                this.messagesReceivedEl = document.getElementById('messagesReceived');
+                this.lastActivityEl = document.getElementById('lastActivity');
+                
+                // Update protocol display
+                const protocol = window.location.protocol === 'https:' ? 'HTTPS (wss://)' : 'HTTP (ws://)';
+                this.protocolEl.textContent = protocol;
+                
+                // Content elements
+                this.transcriptionBox = document.getElementById('transcriptionBox');
+                this.ttsStatus = document.getElementById('ttsStatus');
+                this.logsEl = document.getElementById('logs');
+                this.recordingProgress = document.getElementById('recordingProgress');
+                
+                // Visualizers
+                this.audioVisualizer = document.getElementById('audioVisualizer');
+                this.playbackVisualizer = document.getElementById('playbackVisualizer');
+                
+                // Set default text
+                this.textToSpeakArea.value = 'Добро пожаловать на собеседование! Расскажите немного о себе.';
+            }
+            
+            bindEvents() {
+                // WebSocket events
+                this.connectBtn.addEventListener('click', () => this.connectWebSocket());
+                this.disconnectBtn.addEventListener('click', () => this.disconnectWebSocket());
+                this.heartbeatBtn.addEventListener('click', () => this.sendHeartbeat());
+                
+                // Recording events
+                this.startRecordingBtn.addEventListener('click', () => this.startRecording());
+                this.stopRecordingBtn.addEventListener('click', () => this.stopRecording());
+                this.clearTranscriptionBtn.addEventListener('click', () => this.clearTranscription());
+                
+                // TTS events
+                this.generateSpeechBtn.addEventListener('click', () => this.generateSpeech());
+                this.playGeneratedBtn.addEventListener('click', () => this.playGeneratedAudio());
+                this.stopPlaybackBtn.addEventListener('click', () => this.stopPlayback());
+                
+                // Utility events
+                document.getElementById('clearLogs').addEventListener('click', () => this.clearLogs());
+            }
+            
+            connectWebSocket() {
+                try {
+                    this.log('info', `Подключение к WebSocket: ${this.wsUrl}`);
+                    this.ws = new WebSocket(this.wsUrl);
+                    
+                    this.ws.onopen = () => {
+                        this.log('success', 'WebSocket соединение установлено');
+                        this.updateConnectionStatus(true);
+                        this.updateLastActivity();
+                    };
+                    
+                    this.ws.onmessage = (event) => {
+                        this.handleWebSocketMessage(event);
+                    };
+                    
+                    this.ws.onclose = () => {
+                        this.log('warning', 'WebSocket соединение закрыто');
+                        this.updateConnectionStatus(false);
+                    };
+                    
+                    this.ws.onerror = (error) => {
+                        this.log('error', `Ошибка WebSocket: ${error}`);
+                        this.updateConnectionStatus(false);
+                    };
+                    
+                } catch (error) {
+                    this.log('error', `Ошибка подключения: ${error.message}`);
+                }
+            }
+            
+            disconnectWebSocket() {
+                if (this.ws) {
+                    this.ws.close();
+                    this.ws = null;
+                    this.log('info', 'WebSocket соединение закрыто пользователем');
+                }
+            }
+            
+            sendHeartbeat() {
+                if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                    const message = {
+                        type: 'heartbeat',
+                        ping: 'ping',
+                        timestamp: new Date().toISOString()
+                    };
+                    this.sendMessage(message);
+                    this.log('info', 'Heartbeat отправлен');
+                }
+            }
+            
+            handleWebSocketMessage(event) {
+                try {
+                    const message = JSON.parse(event.data);
+                    this.messagesReceived++;
+                    this.updateCounters();
+                    this.updateLastActivity();
+                    
+                    this.log('info', `Получено сообщение: ${message.type}`);
+                    
+                    switch (message.type) {
+                        case 'connection_status':
+                            this.handleConnectionStatus(message);
+                            break;
+                        case 'state_update':
+                            this.handleStateUpdate(message);
+                            break;
+                        case 'transcription':
+                        case 'transcription_update':
+                            this.handleTranscription(message);
+                            break;
+                        case 'response_analysis':
+                            this.handleResponseAnalysis(message);
+                            break;
+                        case 'question':
+                            this.handleQuestion(message);
+                            break;
+                        case 'analysis_complete':
+                            this.handleAnalysis(message);
+                            break;
+                        case 'audio_chunk':
+                            this.handleAudioChunk(message);
+                            break;
+                        case 'audio_start':
+                            this.handleAudioStart(message);
+                            break;
+                        case 'audio_end':
+                            this.handleAudioEnd(message);
+                            break;
+                        case 'audio_error':
+                            this.handleAudioError(message);
+                            break;
+                        case 'error':
+                            this.handleError(message);
+                            break;
+                        case 'heartbeat':
+                            this.handleHeartbeat(message);
+                            break;
+                        default:
+                            this.log('info', `Неизвестный тип сообщения: ${message.type}`);
+                    }
+                } catch (error) {
+                    this.log('error', `Ошибка обработки сообщения: ${error.message}`);
+                }
+            }
+            
+            handleConnectionStatus(message) {
+                this.log('success', `Статус соединения: ${message.status || 'подключено'}`);
+                if (message.interview_id) {
+                    this.log('info', `ID интервью: ${message.interview_id}`);
+                }
+            }
+            
+            handleStateUpdate(message) {
+                this.log('info', `Состояние изменено: ${message.state}`);
+                if (message.data) {
+                    this.log('info', `Данные состояния: ${JSON.stringify(message.data)}`);
+                }
+            }
+            
+            handleTranscription(message) {
+                const confidence = message.confidence ? ` (${(message.confidence * 100).toFixed(1)}%)` : '';
+                const finalText = message.is_final ? ' [ФИНАЛ]' : ' [ПРОМЕЖУТОЧНЫЙ]';
+                
+                this.transcriptionBox.textContent += `${message.text}${confidence}${finalText}\n`;
+                this.transcriptionBox.scrollTop = this.transcriptionBox.scrollHeight;
+                
+                this.log('success', `Транскрипция: "${message.text}"${confidence}`);
+            }
+            
+            handleResponseAnalysis(message) {
+                const analysis = message.analysis || {};
+                const score = analysis.score || 0;
+                const feedback = analysis.feedback || 'Анализ завершен';
+                
+                this.log('success', `Анализ ответа завершен. Оценка: ${score}/10`);
+                this.transcriptionBox.textContent += `\n[АНАЛИЗ]: Оценка ${score}/10 - ${feedback}\n`;
+                
+                if (analysis.strengths && analysis.strengths.length > 0) {
+                    this.transcriptionBox.textContent += `Сильные стороны: ${analysis.strengths.join(', ')}\n`;
+                }
+                if (analysis.areas_for_improvement && analysis.areas_for_improvement.length > 0) {
+                    this.transcriptionBox.textContent += `Области для улучшения: ${analysis.areas_for_improvement.join(', ')}\n`;
+                }
+            }
+            
+            handleQuestion(message) {
+                this.log('info', `Новый вопрос: ${message.text}`);
+                this.transcriptionBox.textContent += `\n[ВОПРОС]: ${message.text}\n`;
+                
+                if (message.audio_url) {
+                    this.log('info', `Аудио вопроса: ${message.audio_url}`);
+                }
+            }
+            
+            handleAnalysis(message) {
+                this.log('success', `Анализ завершен. Оценка: ${message.score}/10`);
+                this.transcriptionBox.textContent += `\n[АНАЛИЗ]: Оценка ${message.score}/10 - ${message.feedback}\n`;
+            }
+            
+            handleAudioChunk(message) {
+                // Здесь можно реализовать обработку аудио чанков для real-time воспроизведения
+                this.log('info', `Получен аудио чанк ${message.chunk_index || 0}`);
+            }
+            
+            handleAudioStart(message) {
+                this.log('info', `Начало генерации аудио: "${message.text}"`);
+                this.ttsStatus.textContent = `Генерируется аудио: "${message.text}"`;
+            }
+            
+            handleAudioEnd(message) {
+                this.log('success', `Аудио сгенерировано. Всего чанков: ${message.total_chunks}`);
+                this.ttsStatus.textContent += `\nГенерация завершена. Чанков: ${message.total_chunks}`;
+            }
+            
+            handleAudioError(message) {
+                this.log('error', `Ошибка генерации аудио: ${message.error || 'Неизвестная ошибка'}`);
+                this.ttsStatus.textContent = `Ошибка: ${message.error || 'Неизвестная ошибка'}`;
+            }
+            
+            handleError(message) {
+                this.log('error', `Ошибка: ${message.message} (${message.error_code || 'unknown'})`);
+            }
+            
+            handleHeartbeat(message) {
+                this.log('info', `Heartbeat получен: ${message.pong || 'pong'}`);
+            }
+            
+            async startRecording() {
+                try {
+                    // Check if getUserMedia is available
+                    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                        throw new Error('getUserMedia не поддерживается в этом браузере или контексте. Попробуйте использовать HTTPS.');
+                    }
+                    
+                    const stream = await navigator.mediaDevices.getUserMedia({ 
+                        audio: {
+                            sampleRate: 16000,
+                            channelCount: 1,
+                            echoCancellation: true,
+                            noiseSuppression: true
+                        } 
+                    });
+                    
+                    // Check MediaRecorder support
+                    let mimeType = 'audio/webm;codecs=opus';
+                    if (!MediaRecorder.isTypeSupported(mimeType)) {
+                        mimeType = 'audio/webm';
+                        if (!MediaRecorder.isTypeSupported(mimeType)) {
+                            mimeType = 'audio/mp4';
+                        }
+                        this.log('warning', `Используется альтернативный формат: ${mimeType}`);
+                    }
+                    
+                    this.mediaRecorder = new MediaRecorder(stream, {
+                        mimeType: mimeType
+                    });
+                    
+                    this.audioChunks = [];
+                    this.recordingStartTime = Date.now();
+                    
+                    this.mediaRecorder.ondataavailable = (event) => {
+                        if (event.data.size > 0) {
+                            this.audioChunks.push(event.data);
+                            this.sendAudioChunk(event.data);
+                        }
+                    };
+                    
+                    this.mediaRecorder.start(1000); // Чанки каждую секунду
+                    this.isRecording = true;
+                    
+                    this.updateRecordingUI(true);
+                    this.startRecordingProgress();
+                    
+                    this.log('success', 'Запись аудио начата');
+                    
+                } catch (error) {
+                    this.log('error', `Ошибка начала записи: ${error.message}`);
+                }
+            }
+            
+            stopRecording() {
+                if (this.mediaRecorder && this.isRecording) {
+                    this.mediaRecorder.stop();
+                    this.mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                    this.isRecording = false;
+                    
+                    this.updateRecordingUI(false);
+                    this.stopRecordingProgress();
+                    
+                    this.log('info', 'Запись аудио остановлена');
+                }
+            }
+            
+            sendAudioChunk(audioBlob) {
+                if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+                    return;
+                }
+                
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const base64Audio = reader.result.split(',')[1];
+                    
+                    const message = {
+                        type: 'audio_chunk',
+                        audio_data: base64Audio,
+                        sample_rate: 16000,
+                        channels: 1,
+                        chunk_id: `chunk_${Date.now()}`
+                    };
+                    
+                    this.sendMessage(message);
+                };
+                reader.readAsDataURL(audioBlob);
+            }
+            
+            async generateSpeech() {
+                const text = this.textToSpeakArea.value.trim();
+                if (!text) {
+                    this.log('warning', 'Введите текст для генерации речи');
+                    return;
+                }
+                
+                this.generateSpeechBtn.disabled = true;
+                this.ttsStatus.textContent = 'Генерируется речь...';
+                
+                try {
+                    const response = await fetch('/api/v1/realtime/tts', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: new URLSearchParams({
+                            text: text,
+                            language: 'ru',
+                            stream: 'false'
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    const result = await response.json();
+                    
+                    if (result.status === 'success' && result.audio_url) {
+                        this.generatedAudioUrl = result.audio_url;
+                        this.playGeneratedBtn.disabled = false;
+                        this.ttsStatus.textContent = `Речь сгенерирована: ${result.audio_url}`;
+                        this.log('success', `TTS успешно: ${result.audio_url}`);
+                    } else {
+                        throw new Error(result.detail || 'Неизвестная ошибка TTS');
+                    }
+                    
+                } catch (error) {
+                    this.log('error', `Ошибка TTS: ${error.message}`);
+                    this.ttsStatus.textContent = `Ошибка: ${error.message}`;
+                } finally {
+                    this.generateSpeechBtn.disabled = false;
+                }
+            }
+            
+            playGeneratedAudio() {
+                if (!this.generatedAudioUrl) {
+                    this.log('warning', 'Нет сгенерированного аудио для воспроизведения');
+                    return;
+                }
+                
+                try {
+                    this.currentAudio = new Audio(this.generatedAudioUrl);
+                    
+                    this.currentAudio.onplay = () => {
+                        this.log('success', 'Воспроизведение начато');
+                        this.playGeneratedBtn.disabled = true;
+                        this.stopPlaybackBtn.disabled = false;
+                        this.playbackVisualizer.innerHTML = '<span>🔊 Воспроизведение...</span>';
+                    };
+                    
+                    this.currentAudio.onended = () => {
+                        this.log('info', 'Воспроизведение завершено');
+                        this.playGeneratedBtn.disabled = false;
+                        this.stopPlaybackBtn.disabled = true;
+                        this.playbackVisualizer.innerHTML = '<span>🔊 Воспроизведение аудио</span>';
+                    };
+                    
+                    this.currentAudio.onerror = (error) => {
+                        this.log('error', `Ошибка воспроизведения: ${error.message}`);
+                        this.playGeneratedBtn.disabled = false;
+                        this.stopPlaybackBtn.disabled = true;
+                        this.playbackVisualizer.innerHTML = '<span>🔊 Воспроизведение аудио</span>';
+                    };
+                    
+                    this.currentAudio.play();
+                    
+                } catch (error) {
+                    this.log('error', `Ошибка создания аудио: ${error.message}`);
+                }
+            }
+            
+            stopPlayback() {
+                if (this.currentAudio) {
+                    this.currentAudio.pause();
+                    this.currentAudio.currentTime = 0;
+                    this.currentAudio = null;
+                    
+                    this.playGeneratedBtn.disabled = false;
+                    this.stopPlaybackBtn.disabled = true;
+                    this.playbackVisualizer.innerHTML = '<span>🔊 Воспроизведение аудио</span>';
+                    
+                    this.log('info', 'Воспроизведение остановлено');
+                }
+            }
+            
+            clearTranscription() {
+                this.transcriptionBox.textContent = 'Транскрипция будет отображаться здесь...';
+                this.log('info', 'Транскрипция очищена');
+            }
+            
+            clearLogs() {
+                this.logsEl.innerHTML = '<div class="log-entry"><span class="log-timestamp">[00:00:00]</span><span class="log-type-info">Логи очищены</span></div>';
+                this.log('info', 'Логи очищены');
+            }
+            
+            updateConnectionStatus(connected) {
+                if (connected) {
+                    this.wsStatusEl.textContent = 'Подключено';
+                    this.wsStatusEl.className = 'status-value connected';
+                    this.connectBtn.disabled = true;
+                    this.disconnectBtn.disabled = false;
+                    this.heartbeatBtn.disabled = false;
+                    this.startRecordingBtn.disabled = false;
+                    document.getElementById('wsSystemStatus').textContent = 'Подключен';
+                    document.getElementById('wsSystemStatus').className = 'status-value connected';
+                } else {
+                    this.wsStatusEl.textContent = 'Отключено';
+                    this.wsStatusEl.className = 'status-value disconnected';
+                    this.connectBtn.disabled = false;
+                    this.disconnectBtn.disabled = true;
+                    this.heartbeatBtn.disabled = true;
+                    this.startRecordingBtn.disabled = true;
+                    document.getElementById('wsSystemStatus').textContent = 'Не подключен';
+                    document.getElementById('wsSystemStatus').className = 'status-value disconnected';
+                }
+            }
+            
+            updateCounters() {
+                this.messagesSentEl.textContent = this.messagesSent;
+                this.messagesReceivedEl.textContent = this.messagesReceived;
+            }
+            
+            updateLastActivity() {
+                const now = new Date();
+                this.lastActivityEl.textContent = now.toLocaleTimeString();
+            }
+            
+            updateRecordingUI(recording) {
+                if (recording) {
+                    this.startRecordingBtn.disabled = true;
+                    this.stopRecordingBtn.disabled = false;
+                    this.recordingIndicator.classList.add('active');
+                    document.getElementById('recordingStatus').textContent = 'Запись...';
+                    document.getElementById('recordingStatus').className = 'status-value';
+                } else {
+                    this.startRecordingBtn.disabled = false;
+                    this.stopRecordingBtn.disabled = true;
+                    this.recordingIndicator.classList.remove('active');
+                    document.getElementById('recordingStatus').textContent = 'Готов';
+                    document.getElementById('recordingStatus').className = 'status-value';
+                }
+            }
+            
+            startRecordingProgress() {
+                this.recordingProgressInterval = setInterval(() => {
+                    const elapsed = Date.now() - this.recordingStartTime;
+                    const progress = Math.min((elapsed / 60000) * 100, 100); // 60 seconds max
+                    this.recordingProgress.style.width = `${progress}%`;
+                    
+                    if (progress >= 100) {
+                        this.stopRecording();
+                    }
+                }, 100);
+            }
+            
+            stopRecordingProgress() {
+                if (this.recordingProgressInterval) {
+                    clearInterval(this.recordingProgressInterval);
+                    this.recordingProgressInterval = null;
+                }
+                this.recordingProgress.style.width = '0%';
+            }
+            
+            checkAudioSupport() {
+                if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                    document.getElementById('audioApiStatus').textContent = 'Поддерживается';
+                    document.getElementById('audioApiStatus').className = 'status-value connected';
+                } else {
+                    document.getElementById('audioApiStatus').textContent = 'Не поддерживается';
+                    document.getElementById('audioApiStatus').className = 'status-value disconnected';
+                }
+            }
+            
+            sendMessage(message) {
+                if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                    this.ws.send(JSON.stringify(message));
+                    this.messagesSent++;
+                    this.updateCounters();
+                    this.updateLastActivity();
+                }
+            }
+            
+            log(type, message) {
+                const timestamp = new Date().toLocaleTimeString();
+                const logEntry = document.createElement('div');
+                logEntry.className = 'log-entry';
+                logEntry.innerHTML = `
+                    <span class="log-timestamp">[${timestamp}]</span>
+                    <span class="log-type-${type}">${message}</span>
+                `;
+                
+                this.logsEl.appendChild(logEntry);
+                this.logsEl.scrollTop = this.logsEl.scrollHeight;
+                
+                // Keep only last 100 log entries
+                const entries = this.logsEl.querySelectorAll('.log-entry');
+                if (entries.length > 100) {
+                    entries[0].remove();
+                }
+            }
+        }
+        
+        // Initialize the demo when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new RealtimeAudioDemo();
+        });
+    </script>
+</body>
+</html>
