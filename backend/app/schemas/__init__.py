@@ -18,6 +18,11 @@ from .interview_link import (
     InterviewLinkResponse, InterviewLinkPublic, InterviewLinkListResponse,
     CandidateAccessRequest, CandidateSessionResponse, InterviewLinkStats
 )
+from .resume import (
+    ResumeCreate, ResumeUpdate, ResumeResponse, ResumeListResponse,
+    ResumeProcessingStatus, ResumeAnalysisResponse, ResumeBulkUploadResponse,
+    ResumeSearchRequest, ResumeMatchingRequest, ResumeMatchingResponse, ResumeMatchResult
+)
 
 __all__ = [
     "CandidateCreate",
@@ -57,5 +62,16 @@ __all__ = [
     "InterviewLinkListResponse",
     "CandidateAccessRequest",
     "CandidateSessionResponse",
-    "InterviewLinkStats"
+    "InterviewLinkStats",
+    "ResumeCreate",
+    "ResumeUpdate",
+    "ResumeResponse",
+    "ResumeListResponse",
+    "ResumeProcessingStatus",
+    "ResumeAnalysisResponse",
+    "ResumeBulkUploadResponse",
+    "ResumeSearchRequest",
+    "ResumeMatchingRequest",
+    "ResumeMatchingResponse",
+    "ResumeMatchResult"
 ]

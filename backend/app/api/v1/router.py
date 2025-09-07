@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1 import interviews, candidates, auth, vacancies, interview_links, candidate_access, realtime
+from app.api.v1 import interviews, candidates, auth, vacancies, interview_links, candidate_access, realtime, resumes
 
 router = APIRouter(prefix="/api/v1")
 
@@ -9,7 +9,7 @@ def configure_api_routes():
     Configure all API endpoint routers.
     
     Includes all available API modules: authentication, vacancies,
-    interview links, candidate access, interviews, candidates, and realtime.
+    interview links, candidate access, interviews, candidates, resumes, and realtime.
     """
     router.include_router(auth.router)
     router.include_router(vacancies.router)
@@ -17,6 +17,7 @@ def configure_api_routes():
     router.include_router(candidate_access.router)
     router.include_router(interviews.router)
     router.include_router(candidates.router)
+    router.include_router(resumes.router)
     router.include_router(realtime.router)
 
 configure_api_routes()
@@ -56,6 +57,7 @@ async def api_info():
             "candidate-access": "/api/v1/candidate",
             "interviews": "/api/v1/interviews",
             "candidates": "/api/v1/candidates",
+            "resumes": "/api/v1/resumes",
             "realtime": "/api/v1/realtime",
             "websocket": "/ws/{interview_id}",
             "docs": "/docs",

@@ -45,3 +45,4 @@ class Candidate(Base):
     
     # Relationships
     interviews = relationship("Interview", back_populates="candidate")
+    resumes = relationship("Resume", back_populates="candidate")
