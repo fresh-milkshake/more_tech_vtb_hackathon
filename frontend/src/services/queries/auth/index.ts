@@ -5,7 +5,6 @@ import { LocalStorageNames } from '@/constants';
 import type { IUser } from '@/types';
 
 export const useGetCurrentUserInfo = () => {
-  // Проверяем localStorage на наличие данных
   const getCachedUser = (): IUser | null => {
     try {
       const cached = localStorage.getItem(LocalStorageNames.USER);

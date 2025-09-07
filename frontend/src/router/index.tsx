@@ -10,6 +10,7 @@ import ProtectedRoute from './protected-route';
 import { VacanciesPage } from '@/pages/vacancies';
 import { CandidatesPage } from '@/pages/candidates';
 import { InterviewsPage } from '@/pages/interviews';
+import { VacancyPage } from '@/pages/vacancies/id';
 
 const router = createBrowserRouter([
   {
@@ -48,6 +49,16 @@ const router = createBrowserRouter([
           <Suspense fallback={<Loader />}>
             <ProtectedRoute>
               <VacanciesPage />
+            </ProtectedRoute>
+          </Suspense>
+        ),
+      },
+      {
+        path: '/vacancies/:id',
+        element: (
+          <Suspense fallback={<Loader />}>
+            <ProtectedRoute>
+              <VacancyPage />
             </ProtectedRoute>
           </Suspense>
         ),

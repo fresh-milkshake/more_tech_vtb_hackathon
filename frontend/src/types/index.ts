@@ -7,3 +7,8 @@ export interface IUser {
   created_at: string;
   updated_at: string;
 }
+
+export interface IPaginationParams {
+  page?: number;
+  per_page?: number;
+}
