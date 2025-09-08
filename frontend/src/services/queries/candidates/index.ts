@@ -15,7 +15,7 @@ export const useGetCandidates = (params: ICandidatesRequestParams = {}) => {
   });
 };
 
-export const useGetCandidateById = (id: number) => {
+export const useGetCandidateById = (id: string) => {
   return useQuery({
     queryKey: ['get-candidate-by-id', id],
     queryFn: () => getCandidateById(id),

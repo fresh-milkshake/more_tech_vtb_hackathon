@@ -11,6 +11,7 @@ import { VacanciesPage } from '@/pages/vacancies';
 import { CandidatesPage } from '@/pages/candidates';
 import { InterviewsPage } from '@/pages/interviews';
 import { VacancyPage } from '@/pages/vacancies/id';
+import { CurrentCandidatePage } from '@/pages/candidates/id';
 
 const router = createBrowserRouter([
   {
@@ -73,6 +74,17 @@ const router = createBrowserRouter([
           </Suspense>
         ),
       },
+      {
+        path: '/candidates/:id',
+        element: (
+          <Suspense fallback={<Loader />}>
+            <ProtectedRoute>
+              <CurrentCandidatePage />
+            </ProtectedRoute>
+          </Suspense>
+        ),
+      },
+
       {
         path: '/interviews',
         element: (
