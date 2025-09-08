@@ -1,0 +1,21 @@
+/* Toaster.module.css */
+.customToast {
+  color: #000000 !important;
+  background: var(--popover) !important;
+  border: var(--border) !important;
+}
+
+.customToast [data-description] {
+  color: #000000 !important;
+}
+
+/* Для тёмной темы */
+:global(.dark) .customToast {
+  color: #000000 !important;
+  background: var(--popover) !important;
+  border: var(--border) !important;
+}
+
+:global(.dark) .customToast [data-description] {
+  color: #000000 !important;
+}
