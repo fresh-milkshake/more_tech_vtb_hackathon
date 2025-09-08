@@ -114,9 +114,7 @@ export const AnalyticsDashboard: React.FC = () => {
         </Card>
       </div>
 
-      {/* Ближайшее собеседование и статистика */}
       <div className="grid gap-4 md:grid-cols-2">
-        {/* Ближайшее собеседование */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -149,7 +147,7 @@ export const AnalyticsDashboard: React.FC = () => {
                 <button className="flex-1 rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90">
                   Подготовиться
                 </button>
-                <button className="flex-1 rounded-md border text-white px-4 py-2 text-sm hover:bg-muted">
+                <button className="flex-1 rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90">
                   Перенести
                 </button>
               </div>
