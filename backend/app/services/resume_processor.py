@@ -39,9 +39,9 @@ class ResumeProcessor:
         os.makedirs(self.upload_dir, exist_ok=True)
         
         self.md_parser = markitdown.MarkItDown()
-        # self.vector_model = SentenceTransformer('all-MiniLM-L6-v2')
+        self.vector_model = SentenceTransformer('all-MiniLM-L6-v2')
 
-        # self.skills_dict = os.getenv("SKILLS_DICT", "").split(",") if os.getenv("SKILLS_DICT") else []
+        self.skills_dict = os.getenv("SKILLS_DICT", "").split(",") if os.getenv("SKILLS_DICT") else []
         api_key = os.getenv("OPENAI_API_NIKITA")
         self.client = AsyncOpenAI(api_key=api_key)
 
@@ -50,12 +50,12 @@ class ResumeProcessor:
         output = self.md_parser.convert(path)
         return output.text_content
     
-    # # В ПРОДЕ БУДЕМ ИСПОЛЬЗОВАТЬ match_resume_vacancy_llm ТАК КАК КАЧЕСТВО ПРИМЕРНО СХОЖЕЕ, НО ЕСТЬ ОБОСНОВАНИЯ, ЧТО ВАЖНО ПО ЗАДАЧЕ
-    # def match_resume_vacancy(self, resume: str, vacancy: str) -> float:
-    #     """Векторное сравнение резюме и вакансии"""
-    #     resume_embs = self.vector_model.encode(resume, convert_to_tensor=True)
-    #     vacancy_embs = self.vector_model.encode(vacancy, convert_to_tensor=True)
-    #     return round(util.cos_sim(resume_embs, vacancy_embs).item() * 100, 2)
+    # В ПРОДЕ БУДЕМ ИСПОЛЬЗОВАТЬ match_resume_vacancy_llm ТАК КАК КАЧЕСТВО ПРИМЕРНО СХОЖЕЕ, НО ЕСТЬ ОБОСНОВАНИЯ, ЧТО ВАЖНО ПО ЗАДАЧЕ
+    def match_resume_vacancy(self, resume: str, vacancy: str) -> float:
+        """Векторное сравнение резюме и вакансии"""
+        resume_embs = self.vector_model.encode(resume, convert_to_tensor=True)
+        vacancy_embs = self.vector_model.encode(vacancy, convert_to_tensor=True)
+        return round(util.cos_sim(resume_embs, vacancy_embs).item() * 100, 2)
     
     async def match_resume_vacancy_llm(self, resume: str, vacancy: str) -> str:
         parsed_resume = self.parse_document(resume)
@@ -79,28 +79,28 @@ class ResumeProcessor:
         )
         return response.choices[0].message.content
     
-    # def extract_skills(self, text: str) -> set:
-    #     """Извлечение навыков по словарю"""
-    #     lower_text = text.lower()
-    #     skills = set()
-    #     for skill in self.skills_dict:
-    #         if re.search(r'\b' + re.escape(skill.lower()) + r'\b', lower_text):
-    #             skills.add(skill)
-    #     return skills
+    def extract_skills(self, text: str) -> set:
+        """Извлечение навыков по словарю"""
+        lower_text = text.lower()
+        skills = set()
+        for skill in self.skills_dict:
+            if re.search(r'\b' + re.escape(skill.lower()) + r'\b', lower_text):
+                skills.add(skill)
+        return skills
     
-    # # В ПРОДЕ БУДЕМ ИСПОЛЬЗОВАТЬ match_skills_llm ТАК КАК КАЧЕСТВО ПРИМЕРНО СХОЖЕЕ, НО ЕСТЬ ОБОСНОВАНИЯ, ЧТО ВАЖНО ПО ЗАДАЧЕ
-    # def match_skills(self, resume: str, vacancy: str) -> Dict[str, Any]:
-    #     """Сравнение навыков резюме и вакансии"""
-    #     resume_skills = self.extract_skills(resume)
-    #     vacancy_skills = self.extract_skills(vacancy)
-    #     inter = resume_skills & vacancy_skills
-    #     cov = len(inter) / len(vacancy_skills) * 100 if vacancy_skills else 0
-    #     return {
-    #         'resume_skills': resume_skills,
-    #         'vacancy_skills': vacancy_skills,
-    #         'match': inter,
-    #         'cov': round(cov, 2)
-    #     }
+    # В ПРОДЕ БУДЕМ ИСПОЛЬЗОВАТЬ match_skills_llm ТАК КАК КАЧЕСТВО ПРИМЕРНО СХОЖЕЕ, НО ЕСТЬ ОБОСНОВАНИЯ, ЧТО ВАЖНО ПО ЗАДАЧЕ
+    def match_skills(self, resume: str, vacancy: str) -> Dict[str, Any]:
+        """Сравнение навыков резюме и вакансии"""
+        resume_skills = self.extract_skills(resume)
+        vacancy_skills = self.extract_skills(vacancy)
+        inter = resume_skills & vacancy_skills
+        cov = len(inter) / len(vacancy_skills) * 100 if vacancy_skills else 0
+        return {
+            'resume_skills': resume_skills,
+            'vacancy_skills': vacancy_skills,
+            'match': inter,
+            'cov': round(cov, 2)
+        }
     
     async def match_skills_llm(self, resume: str, vacancy: str) -> str:
         """Сравнение навыков резюме и вакансии через LLM"""
