@@ -4,6 +4,10 @@ from typing import List, Optional
 import uuid
 import asyncio
 import os
+import aiofiles
+import json
+import re
+from datetime import datetime
 
 from app.database import get_db
 from app.dependencies import get_current_user
@@ -18,8 +22,143 @@ from app.services.resume_processor import ResumeProcessor, ResumeProcessingError
 
 router = APIRouter(prefix="/resumes", tags=["resumes"])
 
-# Initialize resume processor
 resume_processor = ResumeProcessor()
+
+def _get_extension(filename: str) -> str:
+    return os.path.splitext(filename)[1].lower()
+
+
+def validate_file(content_type: str, size: int, filename: str):
+    """
+    Проверка расширения и размера файла на основе настроек resume_processor.
+    Генерирует ResumeProcessingError при нарушении правил.
+    """
+    ext = _get_extension(filename)
+    if ext not in resume_processor.allowed_extensions:
+        raise ResumeProcessingError(f"Неподдерживаемое расширение файла: {ext}. Допустимые: {resume_processor.allowed_extensions}")
+    if size > resume_processor.max_file_size:
+        raise ResumeProcessingError(f"Файл слишком большой: {size} байт. Максимум: {resume_processor.max_file_size} байт.")
+
+
+async def save_uploaded_file(file_content: bytes, filename: str) -> str:
+    """
+    Сохранение загруженного файла в директорию resume_processor.upload_dir.
+    Возвращает путь к сохранённому файлу.
+    """
+    os.makedirs(resume_processor.upload_dir, exist_ok=True)
+    unique_name = f"{uuid.uuid4().hex}_{filename}"
+    file_path = os.path.join(resume_processor.upload_dir, unique_name)
+    async with aiofiles.open(file_path, "wb") as f:
+        await f.write(file_content)
+    return file_path
+
+
+async def process_resume_background(resume_id: uuid.UUID, db: Session):
+    """
+    Фоновая задача для обработки резюме:
+      - помечает резюме как processing
+      - парсит документ через resume_processor.parse_document
+      - вызывает LLM для извлечения структурированных данных (skills, experience_summary, education_summary, experience_level)
+      - сохраняет результаты в поля модели резюме
+    """
+    try:
+        resume = db.query(Resume).filter(Resume.id == resume_id).first()
+        if not resume:
+            print(f"Резюме {resume_id} не найдено в БД для обработки.")
+            return
+
+        # Пометить начало обработки
+        resume.status = "processing"
+        resume.processing_started_at = datetime.utcnow()
+        resume.error_message = None
+        db.commit()
+        db.refresh(resume)
+
+        # Парсинг документа в сырой текст (parse_document ожидает путь)
+        try:
+            if not resume.file_path or not os.path.exists(resume.file_path):
+                raise ResumeProcessingError("Файл резюме не найден на диске для парсинга.")
+
+            parsed_text = resume_processor.parse_document(resume.file_path)
+            resume.raw_text = parsed_text
+        except Exception as e:
+            resume.status = "failed"
+            resume.error_message = f"Не удалось распарсить документ: {str(e)}"
+            resume.processing_completed_at = datetime.utcnow()
+            db.commit()
+            print(f"Парсинг не удался для резюме {resume_id}: {str(e)}")
+            return
+
+        # Вызов LLM для извлечения структурированной информации
+        try:
+            prompt = f"""
+            Ты эксперт по анализу резюме. Получи из следующего текста структурированную JSON-информацию.
+            Возвращай только валидный JSON, формат:
+            {{
+              "skills": ["skill1", "skill2", ...],
+              "experience_summary": "краткое резюме опыта",
+              "education_summary": "краткое резюме образования",
+              "experience_level": "junior|middle|senior|unknown"
+            }}
+            Текст резюме:
+            {parsed_text}
+            """
+
+            response = await resume_processor.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0
+            )
+            ai_text = response.choices[0].message.content
+
+            json_text = None
+            m = re.search(r'(\{[\s\S]*\})', ai_text)
+            if m:
+                json_text = m.group(1)
+            else:
+                # Если модель вернула иной формат, пробуем весь текст
+                json_text = ai_text
+
+            try:
+                ai_parsed = json.loads(json_text)
+            except Exception:
+                ai_parsed = {
+                    "skills": [],
+                    "experience_summary": None,
+                    "education_summary": None,
+                    "experience_level": "unknown",
+                    "raw": ai_text
+                }
+
+            resume.ai_analysis = ai_parsed
+            if isinstance(ai_parsed.get("skills"), list):
+                resume.skills_extracted = ai_parsed.get("skills")
+            resume.experience_summary = ai_parsed.get("experience_summary") if ai_parsed.get("experience_summary") else None
+            resume.education_summary = ai_parsed.get("education_summary") if ai_parsed.get("education_summary") else None
+
+            resume.analysis_result = ai_text
+
+        except Exception as e:
+            resume.analysis_result = f"Анализ AI не удался: {str(e)}"
+            resume.ai_analysis = {"error": str(e)}
+            print(f"Анализ AI не удался для резюме {resume_id}: {str(e)}")
+
+        resume.status = "processed"
+        resume.processing_completed_at = datetime.utcnow()
+        db.commit()
+        db.refresh(resume)
+
+    except Exception as e:
+        try:
+            resume = db.query(Resume).filter(Resume.id == resume_id).first()
+            if resume:
+                resume.status = "failed"
+                resume.error_message = str(e)
+                resume.processing_completed_at = datetime.utcnow()
+                db.commit()
+        except Exception:
+            pass
+        print(f"Фоновая обработка не удалась для резюме {resume_id}: {str(e)}")
 
 
 @router.post("/upload", response_model=ResumeResponse)
@@ -31,23 +170,15 @@ async def upload_resume(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Upload a new resume for processing.
-    
-    The resume will be processed in the background and its status can be checked
-    using the /resumes/{resume_id}/status endpoint.
+    Загрузить новое резюме для обработки.
     """
-    
     try:
-        # Read file content
         file_content = await file.read()
-        
-        # Validate file
-        resume_processor.validate_file(file.content_type, len(file_content), file.filename)
-        
-        # Save file to disk
-        file_path = await resume_processor.save_uploaded_file(file_content, file.filename)
-        
-        # Create resume record
+
+        validate_file(file.content_type, len(file_content), file.filename)
+
+        file_path = await save_uploaded_file(file_content, file.filename)
+
         resume_data = {
             "filename": os.path.basename(file_path),
             "original_filename": file.filename,
@@ -56,19 +187,20 @@ async def upload_resume(
             "file_path": file_path,
             "candidate_id": candidate_id,
             "uploaded_by_user_id": current_user.id,
-            "upload_source": "hr_upload"
+            "upload_source": "hr_upload",
+            "status": "uploaded",
+            "created_at": datetime.utcnow()
         }
-        
+
         resume = Resume(**resume_data)
         db.add(resume)
         db.commit()
         db.refresh(resume)
-        
-        # Start background processing
+
         background_tasks.add_task(process_resume_background, resume.id, db)
-        
+
         return resume
-        
+
     except ResumeProcessingError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -77,19 +209,8 @@ async def upload_resume(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to upload resume: {str(e)}"
+            detail=f"Не удалось загрузить резюме: {str(e)}"
         )
-
-
-async def process_resume_background(resume_id: uuid.UUID, db: Session):
-    """Background task to process resume"""
-    try:
-        resume = db.query(Resume).filter(Resume.id == resume_id).first()
-        if resume:
-            await resume_processor.process_resume(resume, db)
-    except Exception as e:
-        # Log error but don't raise - this is a background task
-        print(f"Background processing failed for resume {resume_id}: {str(e)}")
 
 
 @router.post("/bulk-upload", response_model=ResumeBulkUploadResponse)
@@ -100,26 +221,19 @@ async def bulk_upload_resumes(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Upload multiple resumes for processing.
-    
-    All resumes will be processed in the background.
+    Загрузить несколько резюме для пакетной обработки.
     """
-    
     successful_uploads = []
     failed_uploads = []
-    
+
     for file in files:
         try:
-            # Read file content
             file_content = await file.read()
-            
-            # Validate file
-            resume_processor.validate_file(file.content_type, len(file_content), file.filename)
-            
-            # Save file to disk
-            file_path = await resume_processor.save_uploaded_file(file_content, file.filename)
-            
-            # Create resume record
+
+            validate_file(file.content_type, len(file_content), file.filename)
+
+            file_path = await save_uploaded_file(file_content, file.filename)
+
             resume_data = {
                 "filename": os.path.basename(file_path),
                 "original_filename": file.filename,
@@ -127,25 +241,26 @@ async def bulk_upload_resumes(
                 "file_size": str(len(file_content)),
                 "file_path": file_path,
                 "uploaded_by_user_id": current_user.id,
-                "upload_source": "hr_bulk_upload"
+                "upload_source": "hr_bulk_upload",
+                "status": "uploaded",
+                "created_at": datetime.utcnow()
             }
-            
+
             resume = Resume(**resume_data)
             db.add(resume)
             db.commit()
             db.refresh(resume)
-            
+
             successful_uploads.append(resume)
-            
-            # Start background processing
+
             background_tasks.add_task(process_resume_background, resume.id, db)
-            
+
         except Exception as e:
             failed_uploads.append({
                 "filename": file.filename,
                 "error": str(e)
             })
-    
+
     return ResumeBulkUploadResponse(
         successful_uploads=successful_uploads,
         failed_uploads=failed_uploads,
@@ -159,27 +274,23 @@ async def bulk_upload_resumes(
 async def list_resumes(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
-    status: Optional[str] = Query(None, description="Filter by processing status"),
-    candidate_id: Optional[uuid.UUID] = Query(None, description="Filter by candidate ID"),
-    search: Optional[str] = Query(None, description="Search in filename or content"),
+    status: Optional[str] = Query(None, description="Фильтр по статусу обработки"),
+    candidate_id: Optional[uuid.UUID] = Query(None, description="Фильтр по ID кандидата"),
+    search: Optional[str] = Query(None, description="Поиск по имени файла или содержимому"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
-    List resumes with optional filtering and search.
-    
-    Supports filtering by status, candidate ID, and text search.
+    Список резюме с опциональными фильтрами и поиском.
     """
-    
     query = db.query(Resume)
-    
-    # Apply filters
+
     if status:
         query = query.filter(Resume.status == status)
-    
+
     if candidate_id:
         query = query.filter(Resume.candidate_id == candidate_id)
-    
+
     if search:
         search_filter = f"%{search}%"
         query = query.filter(
@@ -187,13 +298,11 @@ async def list_resumes(
             (Resume.original_filename.ilike(search_filter)) |
             (Resume.raw_text.ilike(search_filter))
         )
-    
-    # Get total count
+
     total = query.count()
-    
-    # Apply pagination and order by creation date (newest first)
+
     resumes = query.order_by(Resume.created_at.desc()).offset(skip).limit(limit).all()
-    
+
     return ResumeListResponse(
         resumes=resumes,
         total=total,
@@ -208,15 +317,16 @@ async def get_resume(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get resume details by ID"""
-    
+    """
+    Получить детали резюме по ID.
+    """
     resume = db.query(Resume).filter(Resume.id == resume_id).first()
     if not resume:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Resume not found"
+            detail="Резюме не найдено"
         )
-    
+
     return resume
 
 
@@ -226,33 +336,34 @@ async def get_resume_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get resume processing status"""
-    
+    """
+    Получить статус обработки резюме.
+    """
     resume = db.query(Resume).filter(Resume.id == resume_id).first()
     if not resume:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Resume not found"
+            detail="Резюме не найдено"
         )
-    
-    # Calculate progress information
+
+    # Информация о прогрессе
     progress = None
     if resume.status == "processing":
         progress = {
-            "stage": "extracting_text",
-            "estimated_completion": "1-2 minutes"
+            "stage": "извлечение_текста",
+            "estimated_completion": "1-2 минуты"
         }
     elif resume.status == "processed":
         progress = {
-            "stage": "completed",
+            "stage": "завершено",
             "completion_time": resume.processing_completed_at
         }
     elif resume.status == "failed":
         progress = {
-            "stage": "failed",
-            "retry_count": resume.retry_count
+            "stage": "ошибка",
+            "retry_count": resume.retry_count if hasattr(resume, "retry_count") else None
         }
-    
+
     return ResumeProcessingStatus(
         id=resume.id,
         filename=resume.filename,
@@ -270,21 +381,22 @@ async def get_resume_analysis(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get resume analysis results"""
-    
+    """
+    Получить результаты анализа резюме.
+    """
     resume = db.query(Resume).filter(Resume.id == resume_id).first()
     if not resume:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Resume not found"
+            detail="Резюме не найдено"
         )
-    
+
     if resume.status != "processed":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Resume analysis not available. Current status: {resume.status}"
+            detail=f"Анализ резюме недоступен. Текущий статус: {resume.status}"
         )
-    
+
     return ResumeAnalysisResponse(
         id=resume.id,
         filename=resume.filename,
@@ -295,8 +407,8 @@ async def get_resume_analysis(
         experience_summary=resume.experience_summary,
         education_summary=resume.education_summary,
         ai_analysis=resume.ai_analysis,
-        match_scores=resume.match_scores,
-        recommendations=resume.recommendations,
+        match_scores=resume.match_scores if hasattr(resume, "match_scores") else None,
+        recommendations=resume.recommendations if hasattr(resume, "recommendations") else None,
         processing_completed_at=resume.processing_completed_at
     )
 
@@ -308,23 +420,23 @@ async def update_resume(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Update resume information"""
-    
+    """
+    Обновить данные резюме.
+    """
     resume = db.query(Resume).filter(Resume.id == resume_id).first()
     if not resume:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Resume not found"
+            detail="Резюме не найдено"
         )
-    
-    # Update fields
+
     update_data = resume_update.dict(exclude_unset=True)
     for field, value in update_data.items():
         setattr(resume, field, value)
-    
+
     db.commit()
     db.refresh(resume)
-    
+
     return resume
 
 
@@ -335,22 +447,22 @@ async def reprocess_resume(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Reprocess a resume"""
-    
+    """
+    Перезапустить обработку резюме.
+    """
     resume = db.query(Resume).filter(Resume.id == resume_id).first()
     if not resume:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Resume not found"
+            detail="Резюме не найдено"
         )
-    
+
     if resume.status == "processing":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Resume is currently being processed"
+            detail="Резюме в данный момент обрабатывается"
         )
-    
-    # Reset processing fields
+
     resume.status = "uploaded"
     resume.processing_started_at = None
     resume.processing_completed_at = None
@@ -360,13 +472,12 @@ async def reprocess_resume(
     resume.parsed_data = None
     resume.skills_extracted = None
     resume.ai_analysis = None
-    
+
     db.commit()
-    
-    # Start background processing
+
     background_tasks.add_task(process_resume_background, resume.id, db)
-    
-    return {"message": "Resume reprocessing started", "resume_id": resume_id}
+
+    return {"message": "Перезапуск обработки резюме запущен", "resume_id": resume_id}
 
 
 @router.delete("/{resume_id}")
@@ -375,28 +486,26 @@ async def delete_resume(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Delete a resume"""
-    
+    """
+    Удалить резюме (файл + запись в БД).
+    """
     resume = db.query(Resume).filter(Resume.id == resume_id).first()
     if not resume:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Resume not found"
+            detail="Резюме не найдено"
         )
-    
-    # Delete file from disk
+
     if resume.file_path and os.path.exists(resume.file_path):
         try:
             os.remove(resume.file_path)
         except Exception as e:
-            # Log but don't fail - database record is more important
-            print(f"Failed to delete file {resume.file_path}: {str(e)}")
-    
-    # Delete database record
+            print(f"Не удалось удалить файл {resume.file_path}: {str(e)}")
+
     db.delete(resume)
     db.commit()
-    
-    return {"message": "Resume deleted successfully"}
+
+    return {"message": "Резюме успешно удалено"}
 
 
 @router.post("/search", response_model=ResumeListResponse)
@@ -408,14 +517,9 @@ async def search_resumes(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Advanced search for resumes based on various criteria.
-    
-    Supports searching by skills, experience, position, and other criteria.
+    Расширенный поиск резюме по разным критериям.
     """
-    
     query = db.query(Resume).filter(Resume.status == "processed")
-    
-    # Apply search filters
     if search_request.query:
         search_filter = f"%{search_request.query}%"
         query = query.filter(
@@ -423,35 +527,32 @@ async def search_resumes(
             (Resume.experience_summary.ilike(search_filter)) |
             (Resume.education_summary.ilike(search_filter))
         )
-    
+
     if search_request.skills:
-        # Search for resumes containing any of the specified skills
         for skill in search_request.skills:
             skill_filter = f"%{skill}%"
             query = query.filter(Resume.raw_text.ilike(skill_filter))
-    
+
     if search_request.position:
         position_filter = f"%{search_request.position}%"
         query = query.filter(Resume.raw_text.ilike(position_filter))
-    
+
     if search_request.status:
         query = query.filter(Resume.status == search_request.status)
-    
+
     if search_request.candidate_id:
         query = query.filter(Resume.candidate_id == search_request.candidate_id)
-    
+
     if search_request.uploaded_after:
         query = query.filter(Resume.created_at >= search_request.uploaded_after)
-    
+
     if search_request.uploaded_before:
         query = query.filter(Resume.created_at <= search_request.uploaded_before)
-    
-    # Get total count
+
     total = query.count()
-    
-    # Apply pagination and order by relevance (for now, by creation date)
+
     resumes = query.order_by(Resume.created_at.desc()).offset(skip).limit(limit).all()
-    
+
     return ResumeListResponse(
         resumes=resumes,
         total=total,
@@ -463,65 +564,85 @@ async def search_resumes(
 @router.post("/match-position", response_model=ResumeMatchingResponse)
 async def match_resumes_to_position(
     matching_request: ResumeMatchingRequest,
-    limit: int = Query(50, ge=1, le=100, description="Maximum number of resumes to analyze"),
+    limit: int = Query(50, ge=1, le=100, description="Максимальное число резюме для анализа"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
-    Match processed resumes against position requirements.
-    
-    Returns resumes ranked by how well they match the position requirements.
+    Сопоставить обработанные резюме с требованиями вакансии.
+    Использует resume_processor.match_resume_vacancy_llm (LLM) для оценки соответствия и объяснения.
     """
-    
-    # Get processed resumes
     resumes = db.query(Resume).filter(Resume.status == "processed").limit(limit).all()
-    
+
     if not resumes:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="No processed resumes found"
+            detail="Обработанные резюме не найдены"
         )
-    
-    # Convert matching request to requirements dict
-    position_requirements = {
-        "required_skills": matching_request.required_skills,
-        "preferred_skills": matching_request.preferred_skills,
-        "experience_level": matching_request.experience_level,
-        "min_experience_years": matching_request.min_experience_years,
-        "job_description": matching_request.job_description
-    }
-    
-    # Match each resume
+
+    vacancy_text = matching_request.job_description or matching_request.position_title or ""
+    if matching_request.required_skills:
+        vacancy_text += "\nТребуемые навыки: " + ", ".join(matching_request.required_skills)
+    if matching_request.preferred_skills:
+        vacancy_text += "\nЖелаемые навыки: " + ", ".join(matching_request.preferred_skills)
+
+    temp_vacancy_filename = f"{uuid.uuid4().hex}_vacancy.txt"
+    temp_vacancy_path = os.path.join(resume_processor.upload_dir, temp_vacancy_filename)
+    os.makedirs(resume_processor.upload_dir, exist_ok=True)
+    async with aiofiles.open(temp_vacancy_path, "w", encoding="utf-8") as vf:
+        await vf.write(vacancy_text)
+
     matches = []
     for resume in resumes:
         try:
-            match_result = await resume_processor.match_resume_to_position(resume, position_requirements)
-            
+            llm_response_text = await resume_processor.match_resume_vacancy_llm(resume.file_path, temp_vacancy_path)
+
+            score = 0.0
+            score_match = re.search(r'([0-9]{1,3})(?:\s*/\s*100|\s*%)?', llm_response_text)
+            if score_match:
+                try:
+                    val = int(score_match.group(1))
+                    if 0 <= val <= 100:
+                        score = float(val)
+                except Exception:
+                    score = 0.0
+
+            if score >= 75:
+                fit = "high"
+            elif score >= 50:
+                fit = "medium"
+            else:
+                fit = "low"
+
             matches.append(ResumeMatchResult(
-                resume_id=match_result["resume_id"],
+                resume_id=resume.id,
                 filename=resume.filename,
                 candidate_id=resume.candidate_id,
-                match_score=match_result["match_score"],
+                match_score=score,
                 skills_match={
-                    "matched_required": match_result["matched_required_skills"],
-                    "matched_preferred": match_result["matched_preferred_skills"],
+                    "matched_required": [],  # можно дополнить парсингом llm_response_text
+                    "matched_preferred": []
                 },
                 experience_match={
                     "level": resume.ai_analysis.get("experience_level", "unknown") if resume.ai_analysis else "unknown"
                 },
-                overall_fit=match_result["fit_level"],
-                recommendations=match_result["recommendations"],
-                missing_skills=match_result["missing_required_skills"],
-                matching_skills=match_result["matched_required_skills"] + match_result["matched_preferred_skills"]
+                overall_fit=fit,
+                recommendations=[],  # можно извлечь из llm_response_text
+                missing_skills=[],
+                matching_skills=[]
             ))
         except Exception as e:
-            # Skip resumes that fail to match
-            print(f"Failed to match resume {resume.id}: {str(e)}")
+            print(f"Не удалось сопоставить резюме {resume.id}: {str(e)}")
             continue
-    
-    # Sort matches by score (highest first)
+
+    try:
+        if os.path.exists(temp_vacancy_path):
+            os.remove(temp_vacancy_path)
+    except Exception:
+        pass
+
     matches.sort(key=lambda x: x.match_score, reverse=True)
-    
+
     return ResumeMatchingResponse(
         position_title=matching_request.position_title,
         total_resumes_analyzed=len(resumes),
@@ -540,45 +661,40 @@ async def get_resume_stats(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get resume statistics and overview"""
-    
+    """
+    Получить статистику и обзор по резюме.
+    """
     from sqlalchemy import func
-    
-    # Total resumes
+
     total_resumes = db.query(Resume).count()
-    
-    # Resumes by status
+
     status_counts = db.query(
         Resume.status,
         func.count(Resume.id).label('count')
     ).group_by(Resume.status).all()
-    
+
     status_distribution = {status: count for status, count in status_counts}
-    
-    # Recent uploads (last 7 days)
-    from datetime import datetime, timedelta
+
+    from datetime import timedelta
     week_ago = datetime.utcnow() - timedelta(days=7)
     recent_uploads = db.query(Resume).filter(Resume.created_at >= week_ago).count()
-    
-    # Processing statistics
+
     processed_resumes = db.query(Resume).filter(Resume.status == "processed").count()
     failed_resumes = db.query(Resume).filter(Resume.status == "failed").count()
-    
-    # Most common skills (from processed resumes)
+
     processed_resumes_with_skills = db.query(Resume).filter(
         Resume.status == "processed",
         Resume.skills_extracted.isnot(None)
     ).all()
-    
+
     skill_counts = {}
     for resume in processed_resumes_with_skills:
         if resume.skills_extracted:
             for skill in resume.skills_extracted:
                 skill_counts[skill] = skill_counts.get(skill, 0) + 1
-    
-    # Top 10 skills
+
     top_skills = sorted(skill_counts.items(), key=lambda x: x[1], reverse=True)[:10]
-    
+
     return {
         "total_resumes": total_resumes,
         "status_distribution": status_distribution,
