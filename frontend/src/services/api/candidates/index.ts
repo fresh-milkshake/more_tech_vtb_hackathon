@@ -38,7 +38,7 @@ export const getCandidates = async (
 };
 
 export const getCandidateById = async (
-  id: number
+  id: string
 ): Promise<ICandidate | null> => {
   try {
     const { data } = await api.get<ICandidate>(`/candidates/${id}`);

@@ -1,5 +1,4 @@
-// src/pages/vacancies/index.tsx
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useGetVacancies } from '@/services/queries/vacancies';
@@ -8,6 +7,7 @@ import { VacancyList } from '@/components/vacancies-components/vacancies-list';
 import { VacanciesPagination } from '@/components/vacancies-components/vacancies-pagination';
 import { CreateVacancyDialog } from '@/components/modals/create-vacancy-dialog';
 import { Breadcrumbs } from '@/components/shared/breadcrumbs';
+
 interface VacancyFilters {
   search: string;
   is_active: boolean | undefined;
@@ -29,6 +29,10 @@ export const VacanciesPage: React.FC = () => {
     })(),
   };
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [currentPage]);
+
   const setFilters = (newFilters: VacancyFilters) => {
     const params = new URLSearchParams(searchParams);
 
@@ -49,7 +53,7 @@ export const VacanciesPage: React.FC = () => {
     setSearchParams(params);
   };
 
-  const { data, isLoading, error } = useGetVacancies({
+  const { data, isLoading, error, isFetching } = useGetVacancies({
     page: currentPage,
     per_page: 10,
     ...(filters.search && { search: filters.search }),
@@ -87,7 +91,8 @@ export const VacanciesPage: React.FC = () => {
         <CreateVacancyDialog />
       </div>
 
-      <VacancyList vacancies={vacancies} isLoading={isLoading} />
+      {/* Используем isFetching для отображения скелетона при переходе по страницам */}
+      <VacancyList vacancies={vacancies} isLoading={isLoading || isFetching} />
 
       {data && data.total > 0 && (
         <div className="flex flex-col items-center gap-4 mt-6">

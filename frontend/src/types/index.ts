@@ -11,4 +11,5 @@ export interface IUser {
 export interface IPaginationParams {
   page?: number;
   per_page?: number;
+  total?: number;
 }

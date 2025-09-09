@@ -155,7 +155,6 @@ export const CandidatesList: React.FC<CandidatesListProps> = ({
               <div className="flex items-center gap-2">
                 <Link
                   to={`/candidates/${candidate.id}`}
-                  target="_blank"
                   rel="noopener noreferrer"
                   className="text-blue-600 font-medium"
                 >
