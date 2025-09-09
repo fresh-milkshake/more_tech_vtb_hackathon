@@ -1,4 +1,3 @@
-// src/pages/vacancies/index.tsx
 import React, { useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
