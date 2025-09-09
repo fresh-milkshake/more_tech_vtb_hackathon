@@ -44,6 +44,15 @@ export const HomePage: React.FC<Props> = ({ className }) => {
               <span>Кандидаты</span>
             </Badge>
           </Link>
+
+          <Link to="/public-interview/e9328d06-c0c9-45bc-800a-b0be9ce9cecb">
+            <Badge
+              variant="outline"
+              className="flex items-center gap-2 text-sm py-2 px-4 cursor-pointer hover:shadow-md transition-all duration-200 border-[#0af]"
+            >
+              <span>Моковое интервью</span>
+            </Badge>
+          </Link>
         </div>
         <AnalyticsDashboard />
       </div>
