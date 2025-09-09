@@ -1,4 +1,3 @@
-// src/components/shared/breadcrumbs/index.tsx
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
@@ -34,7 +33,9 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
         {/* Главная */}
         <BreadcrumbItem>
           <BreadcrumbLink asChild>
-            <Link to="/">{PATH_LABELS['/']}</Link>
+            <Link to="/" className="text-black hover:text-gray-700">
+              {PATH_LABELS['/']}
+            </Link>
           </BreadcrumbLink>
         </BreadcrumbItem>
 
@@ -48,10 +49,12 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
               <BreadcrumbSeparator />
               <BreadcrumbItem>
                 {isLast && extraLabel ? (
-                  <span>{extraLabel}</span>
+                  <span className="text-black">{extraLabel}</span>
                 ) : (
                   <BreadcrumbLink asChild>
-                    <Link to={path}>{label}</Link>
+                    <Link to={path} className="text-black hover:text-gray-700">
+                      {label}
+                    </Link>
                   </BreadcrumbLink>
                 )}
               </BreadcrumbItem>

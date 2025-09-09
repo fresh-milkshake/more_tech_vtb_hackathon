@@ -22,6 +22,7 @@ export const VacanciesPagination: React.FC<{
           <PaginationPrevious
             onClick={() => onPageChange(Math.max(1, currentPage - 1))}
             aria-disabled={currentPage === 1}
+            className="cursor-pointer"
           />
         </PaginationItem>
 
@@ -31,6 +32,7 @@ export const VacanciesPagination: React.FC<{
             <PaginationItem key={page}>
               <PaginationLink
                 isActive={page === currentPage}
+                className="cursor-pointer"
                 onClick={() => onPageChange(page)}
               >
                 {page}
@@ -41,6 +43,7 @@ export const VacanciesPagination: React.FC<{
 
         <PaginationItem>
           <PaginationNext
+            className="cursor-pointer"
             onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
             aria-disabled={currentPage === totalPages}
           />

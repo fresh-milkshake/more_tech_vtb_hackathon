@@ -39,6 +39,10 @@ export interface ICandidatesRequestParams extends IPaginationParams {
   search?: string;
   applied_position?: string;
   experience_years?: string;
+  status?: string;
+  skills?: string;
+  created_at_from?: string; // ISO date
+  created_at_to?: string; // ISO date
 }
 
 export interface ICandidatesResponse {

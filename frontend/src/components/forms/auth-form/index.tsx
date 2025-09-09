@@ -17,7 +17,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { handleApiError } from '@/services/api';
 import { useAuthStore } from '@/store/auth-store';
-import logo from '@/assets/vtb-pulse-logo.svg';
+import logo from '@/assets/hr-avatar-logo.svg';
 import { useAuthorization, useRegistration } from '@/services/mutations/auth';
 import {
   loginSchema,
@@ -27,6 +27,7 @@ import {
 } from './auth-form.validation';
 import { cn } from '@/lib/utils';
 import styles from './auth-form.module.scss';
+import { AxiosError } from 'axios';
 
 const AuthForm: React.FC = () => {
   const navigate = useNavigate();
@@ -67,9 +68,15 @@ const AuthForm: React.FC = () => {
           toast.success('Успех', { description: 'Вы успешно вошли в систему' });
           navigate('/');
         },
-        onError: (error) => {
-          handleApiError(error, 'Ошибка входа');
-          toast.error('Ошибка', { description: 'Не удалось войти в систему' });
+        onError: (error: Error | AxiosError) => {
+          if (error instanceof AxiosError) {
+            handleApiError(error, 'Ошибка входа');
+            toast.error('Ошибка', {
+              description: 'Не удалось войти в систему',
+            });
+          } else {
+            toast.error('Ошибка', { description: error.message });
+          }
         },
       }
     );
@@ -90,7 +97,7 @@ const AuthForm: React.FC = () => {
           setActiveTab('login');
           registerForm.reset();
         },
-        onError: (error) => {
+        onError: (error: Error | AxiosError) => {
           handleApiError(error, 'Ошибка регистрации');
           toast.error('Ошибка', {
             description: 'Не удалось зарегистрироваться',

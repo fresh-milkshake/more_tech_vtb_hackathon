@@ -6,6 +6,7 @@ import json
 import io
 from datetime import datetime
 
+from app.config import settings
 from app.services.elevenlabs_service import ElevenLabsService
 from app.services.interview_analysis_mock import InterviewAnalysisMock
 from app.services.text_to_speech import TextToSpeechService
@@ -20,7 +21,9 @@ async def get_elevenlabs_service() -> ElevenLabsService:
     return ElevenLabsService()
 
 async def get_analysis_service() -> InterviewAnalysisMock:
-    return InterviewAnalysisMock()
+    # InterviewAnalysisMock now requires a vacancy path on init
+    vacancy_path = getattr(settings, "VACANCY_PATH", "vacancy.md")
+    return InterviewAnalysisMock(vacancy_path)
 
 async def get_tts_service() -> TextToSpeechService:
     return TextToSpeechService()
@@ -246,7 +249,8 @@ async def health_check():
     try:
         # Test service availability
         elevenlabs_service = ElevenLabsService()
-        analysis_service = InterviewAnalysisMock()
+        vacancy_path = getattr(settings, "VACANCY_PATH", "vacancy.md")
+        analysis_service = InterviewAnalysisMock(vacancy_path)
         tts_service = TextToSpeechService()
         
         # Get health status

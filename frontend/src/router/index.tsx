@@ -11,6 +11,9 @@ import { VacanciesPage } from '@/pages/vacancies';
 import { CandidatesPage } from '@/pages/candidates';
 import { InterviewsPage } from '@/pages/interviews';
 import { VacancyPage } from '@/pages/vacancies/id';
+import { CurrentCandidatePage } from '@/pages/candidates/id';
+import { CurrentInterviewPage } from '@/pages/interviews/id';
+import { PublicInterviewPage } from '@/pages/public-interview';
 
 const router = createBrowserRouter([
   {
@@ -74,6 +77,16 @@ const router = createBrowserRouter([
         ),
       },
       {
+        path: '/candidates/:id',
+        element: (
+          <Suspense fallback={<Loader />}>
+            <ProtectedRoute>
+              <CurrentCandidatePage />
+            </ProtectedRoute>
+          </Suspense>
+        ),
+      },
+      {
         path: '/interviews',
         element: (
           <Suspense fallback={<Loader />}>
@@ -83,11 +96,29 @@ const router = createBrowserRouter([
           </Suspense>
         ),
       },
+      {
+        path: '/interviews/:id',
+        element: (
+          <Suspense fallback={<Loader />}>
+            <ProtectedRoute>
+              <CurrentInterviewPage />
+            </ProtectedRoute>
+          </Suspense>
+        ),
+      },
     ],
   },
   {
     path: '*',
     element: <Navigate to="/" replace />,
+  },
+  {
+    path: '/public-interview/:id',
+    element: (
+      <Suspense fallback={<Loader />}>
+        <PublicInterviewPage />
+      </Suspense>
+    ),
   },
 ]);
 

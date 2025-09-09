@@ -1,6 +1,6 @@
 import React from 'react';
 import { Outlet, Link } from 'react-router-dom';
-import VTBLogo from '../../assets/vtb-pulse-logo.svg';
+import logo from '@/assets/hr-avatar-logo.svg';
 import { Container } from '@/components/shared/container';
 import styles from './main-layout.module.scss';
 import { cn } from '@/lib/utils';
@@ -30,7 +30,7 @@ export const Layout: React.FC<Props> = ({
                   styles.logoWrapper
                 )}
               >
-                <img src={VTBLogo} className={styles.logo} alt="VTB Logo" />
+                <img src={logo} className={styles.logo} alt="Logo" />
               </Link>
               <div className="flex items-center gap-4">
                 <UserDropdown />
@@ -52,7 +52,8 @@ export const Layout: React.FC<Props> = ({
         <footer className="border-t bg-muted">
           <Container>
             <div className="py-4 text-center text-sm text-muted-foreground">
-              © {new Date().getFullYear()} VTB | HR Pulse. Все права защищены.
+              © {new Date().getFullYear()} HR Avatar. Developed with ❤️ by
+              Headhunters team.
             </div>
           </Container>
         </footer>
