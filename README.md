@@ -228,6 +228,7 @@ more-tech/
 
 ## Авторы
 
-- [Taneellaa / Artemy](https://github.com/Taneellaa) - frontend
-- [fresh-milkshake / Nikita](https://github.com/fresh-milkshake) - backend, elevenlabs и база данных
+- [Taneellaa / Artemy](https://github.com/Taneellaa) - frontend и UX/UI дизайн
+- [fresh-milkshake / Nikita](https://github.com/fresh-milkshake) - backend и база данных
 - [bolgoff / Andrew](https://github.com/bolgoff) - ML и работа с LLM
+- [IrkaKeller / Irina](https://github.com/IrkaKeller) - менеджер и тестировщик
