@@ -13,6 +13,7 @@ import { InterviewsPage } from '@/pages/interviews';
 import { VacancyPage } from '@/pages/vacancies/id';
 import { CurrentCandidatePage } from '@/pages/candidates/id';
 import { CurrentInterviewPage } from '@/pages/interviews/id';
+import { PublicInterviewPage } from '@/pages/public-interview';
 
 const router = createBrowserRouter([
   {
@@ -110,6 +111,14 @@ const router = createBrowserRouter([
   {
     path: '*',
     element: <Navigate to="/" replace />,
+  },
+  {
+    path: '/public-interview/:id',
+    element: (
+      <Suspense fallback={<Loader />}>
+        <PublicInterviewPage />
+      </Suspense>
+    ),
   },
 ]);
 
