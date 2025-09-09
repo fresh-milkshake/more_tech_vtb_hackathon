@@ -72,8 +72,8 @@ TODO
 
 ## Конфигурация и деплой
 
-- [backend](https://github.com/fresh-milkshake/more_tech_vtb_hackathon/backend/README.md)
-- [frontend](https://github.com/fresh-milkshake/more_tech_vtb_hackathon/frontend/README.md)
+- [backend](https://github.com/fresh-milkshake/more_tech_vtb_hackathon/blob/main/backend/README.md)
+- [frontend](https://github.com/fresh-milkshake/more_tech_vtb_hackathon/blob/main/frontend/README.md)
 
 ## Структура проекта
 
