@@ -52,14 +52,6 @@ const mockData = {
 export const AnalyticsDashboard: React.FC = () => {
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Аналитика</h1>
-        <p className="text-muted-foreground">
-          Обзор ключевых метрик HR процессов
-        </p>
-      </div>
-
-      {/* Основные метрики */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -144,10 +136,10 @@ export const AnalyticsDashboard: React.FC = () => {
                 </div>
               </div>
               <div className="flex gap-2">
-                <button className="flex-1 rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90">
+                <button className="flex-1 rounded-md  px-4 py-2 text-sm text-white bg-[#00aaff] hover:bg-[#00aaff]/90">
                   Подготовиться
                 </button>
-                <button className="flex-1 rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90">
+                <button className="flex-1 rounded-md  px-4 py-2 text-sm text-white bg-[#00aaff] hover:bg-[#00aaff]/90">
                   Перенести
                 </button>
               </div>

@@ -84,7 +84,7 @@ export const CurrentCandidatePage: React.FC<Props> = ({ className }) => {
               </p>
             </div>
             <Badge variant="secondary">
-              {candidate.experience_years} лет опыта
+              {candidate.experience_years} опыта
             </Badge>
           </div>
         </CardHeader>
@@ -168,7 +168,7 @@ export const CurrentCandidatePage: React.FC<Props> = ({ className }) => {
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <Clock className="w-4 h-4 text-muted-foreground" />
-                <span>{candidate.experience_years} лет опыта</span>
+                <span>{candidate.experience_years} опыта</span>
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <Calendar className="w-4 h-4 text-muted-foreground" />

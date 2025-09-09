@@ -1,6 +1,6 @@
 import React from 'react';
 import { Outlet, Link } from 'react-router-dom';
-import VTBLogo from '../../assets/vtb-pulse-logo.svg';
+import logo from '@/assets/hr-avatar-logo.svg';
 import { Container } from '@/components/shared/container';
 import styles from './main-layout.module.scss';
 import { cn } from '@/lib/utils';
@@ -30,7 +30,7 @@ export const Layout: React.FC<Props> = ({
                   styles.logoWrapper
                 )}
               >
-                <img src={VTBLogo} className={styles.logo} alt="VTB Logo" />
+                <img src={logo} className={styles.logo} alt="Logo" />
               </Link>
               <div className="flex items-center gap-4">
                 <UserDropdown />

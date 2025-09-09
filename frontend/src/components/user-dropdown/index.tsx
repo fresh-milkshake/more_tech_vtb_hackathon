@@ -21,7 +21,7 @@ export const UserDropdown: FC = () => {
       <DropdownMenuTrigger asChild>
         <Button
           variant="default"
-          className="relative text-white  rounded bg-black"
+          className="relative text-white  rounded bg-[#00aaff] hover:bg-[#00aaff]/90"
         >
           {displayUser?.full_name || 'Гость'}
         </Button>

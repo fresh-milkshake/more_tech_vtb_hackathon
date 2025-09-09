@@ -7,7 +7,8 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Briefcase, MapPin, DollarSign, Clock } from 'lucide-react';
+import { Briefcase, MapPin, Clock, BanknoteArrowUp } from 'lucide-react';
+
 import type { IVacancy } from '@/services/api/vacancies/vacancies.types';
 import { Link } from 'react-router-dom';
 
@@ -40,7 +41,7 @@ export const VacancyCard: React.FC<{ vacancy: IVacancy }> = ({ vacancy }) => (
             </div>
 
             <div className="flex items-center gap-2 text-sm">
-              <DollarSign className="w-4 h-4 text-muted-foreground" />
+              <BanknoteArrowUp className="w-4 h-4 text-muted-foreground" />
               <span>{vacancy.salary_range} ₽</span>
             </div>
 
