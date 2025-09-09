@@ -52,7 +52,8 @@ export const Layout: React.FC<Props> = ({
         <footer className="border-t bg-muted">
           <Container>
             <div className="py-4 text-center text-sm text-muted-foreground">
-              © {new Date().getFullYear()} VTB | HR Pulse. Все права защищены.
+              © {new Date().getFullYear()} HR Avatar. Developed with ❤️ by
+              Headhunters team.
             </div>
           </Container>
         </footer>

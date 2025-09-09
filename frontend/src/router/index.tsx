@@ -12,6 +12,7 @@ import { CandidatesPage } from '@/pages/candidates';
 import { InterviewsPage } from '@/pages/interviews';
 import { VacancyPage } from '@/pages/vacancies/id';
 import { CurrentCandidatePage } from '@/pages/candidates/id';
+import { CurrentInterviewPage } from '@/pages/interviews/id';
 
 const router = createBrowserRouter([
   {
@@ -84,13 +85,22 @@ const router = createBrowserRouter([
           </Suspense>
         ),
       },
-
       {
         path: '/interviews',
         element: (
           <Suspense fallback={<Loader />}>
             <ProtectedRoute>
               <InterviewsPage />
+            </ProtectedRoute>
+          </Suspense>
+        ),
+      },
+      {
+        path: '/interviews/:id',
+        element: (
+          <Suspense fallback={<Loader />}>
+            <ProtectedRoute>
+              <CurrentInterviewPage />
             </ProtectedRoute>
           </Suspense>
         ),
