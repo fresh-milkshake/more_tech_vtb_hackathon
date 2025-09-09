@@ -41,8 +41,110 @@ AI-ассистент для проведения автоматизирован
 
 ### Архитектура системы:
 
-TODO
+```mermaid
+graph TB
+    subgraph "Frontend (React + TypeScript)"
+        UI[React UI Components]
+        Router[React Router]
+        State[Zustand Store]
+        Query[TanStack Query]
+        WSClient[WebSocket Client]
+    end
 
+    subgraph "Backend (FastAPI)"
+        API[REST API Endpoints]
+        WS[WebSocket Manager]
+        SM[State Machine]
+        Services[AI Services]
+    end
+
+    subgraph "AI Services"
+        STT[Speech-to-Text<br/>ElevenLabs]
+        TTS[Text-to-Speech<br/>ElevenLabs]
+        AI[AI Analysis]
+        Resume[Resume Processor<br/>SentenceTransformers]
+    end
+
+    subgraph "Database"
+        DB[(PostgreSQL)]
+        Migrations[Alembic Migrations]
+    end
+
+    subgraph "External APIs"
+        OpenAI[OpenAI API]
+        ElevenLabs[ElevenLabs API]
+    end
+
+    subgraph "Interview State Machine"
+        START[START]
+        INTRO[INTRODUCTION]
+        LOAD[LOADING_CONTEXT]
+        PLAN[PLAN_DECISION]
+        UPDATE[UPDATING_PLAN]
+        NEXT[NEXT_STAGE]
+        ASK[ASKING_QUESTION]
+        WAIT[WAITING_RESPONSE]
+        ANALYZE[ANALYZING]
+        SKIP[SKIPPING_QUESTION]
+        TIMELINE[UPDATING_TIMELINE]
+        END[ENDING]
+        FAREWELL[FAREWELL]
+        COMPLETE[COMPLETE]
+    end
+
+    UI --> Router
+    UI --> State
+    UI --> Query
+    UI --> WSClient
+    
+    WSClient <--> WS
+    Query --> API
+    
+    API --> Services
+    WS --> SM
+    
+    Services --> STT
+    Services --> TTS
+    Services --> AI
+    Services --> Resume
+    
+    STT --> ElevenLabs
+    TTS --> ElevenLabs
+    AI --> OpenAI
+    
+    API --> DB
+    DB --> Migrations
+    
+    START --> INTRO
+    INTRO --> LOAD
+    LOAD --> PLAN
+    PLAN --> UPDATE
+    UPDATE --> NEXT
+    NEXT --> ASK
+    ASK --> WAIT
+    WAIT --> ANALYZE
+    ANALYZE --> TIMELINE
+    TIMELINE --> PLAN
+    WAIT --> SKIP
+    SKIP --> TIMELINE
+    PLAN --> END
+    END --> FAREWELL
+    FAREWELL --> COMPLETE
+
+    classDef frontend fill:#e1f5fe
+    classDef backend fill:#f3e5f5
+    classDef ai fill:#e8f5e8
+    classDef database fill:#fff3e0
+    classDef external fill:#ffebee
+    classDef state fill:#f1f8e9
+
+    class UI,Router,State,Query,WSClient frontend
+    class API,WS,SM,Services backend
+    class STT,TTS,AI,Resume ai
+    class DB,Migrations database
+    class OpenAI,ElevenLabs external
+    class START,INTRO,LOAD,PLAN,UPDATE,NEXT,ASK,WAIT,ANALYZE,SKIP,TIMELINE,END,FAREWELL,COMPLETE state
+```
 ## Технологический стек
 
 ### Backend
