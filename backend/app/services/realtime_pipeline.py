@@ -1,9 +1,7 @@
 import asyncio
 import logging
-from typing import Dict, Any, Optional, AsyncGenerator, Callable
+from typing import Dict, Any, Optional, Callable
 from datetime import datetime
-import json
-import io
 
 from app.config import settings
 from app.services.interview_analysis_mock import InterviewAnalysisMock
@@ -15,18 +13,18 @@ class RealtimePipelineService:
     """
     Real-time audio processing pipeline service
     Coordinates: Audio Input -> STT -> Analysis -> TTS -> Audio Output
+
+    IMPORTANT: requires vacancy_path to initialize InterviewAnalysisMock (uses only functions from first file).
     """
     
-    def __init__(self, services: Dict[str, Any]):
+    def __init__(self, services: Dict[str, Any], vacancy_path: str):
         self.services = services
         self.active_pipelines: Dict[str, Dict] = {}
         self.audio_buffers: Dict[str, bytearray] = {}
         self.processing_locks: Dict[str, asyncio.Lock] = {}
+ 
+        self.mock_analyzer = InterviewAnalysisMock(vacancy_path)
         
-        # Initialize mock analysis service
-        self.mock_analyzer = InterviewAnalysisMock()
-        
-        # Pipeline configuration
         self.min_chunk_size = 2048  # Minimum audio chunk size for processing
         self.max_buffer_size = 32768  # Maximum buffer size before forced processing
         self.silence_threshold = 0.01  # Silence detection threshold
@@ -41,7 +39,6 @@ class RealtimePipelineService:
                 logger.warning(f"Pipeline already active for interview {interview_id}")
                 return True
             
-            # Initialize pipeline state
             self.active_pipelines[interview_id] = {
                 "status": "active",
                 "context": context,
@@ -56,7 +53,6 @@ class RealtimePipelineService:
                 "is_processing": False
             }
             
-            # Initialize audio buffer and lock
             self.audio_buffers[interview_id] = bytearray()
             self.processing_locks[interview_id] = asyncio.Lock()
             
@@ -74,11 +70,9 @@ class RealtimePipelineService:
                 logger.warning(f"No active pipeline for interview {interview_id}")
                 return True
             
-            # Mark as stopped
             self.active_pipelines[interview_id]["status"] = "stopped"
             self.active_pipelines[interview_id]["stopped_at"] = datetime.utcnow()
             
-            # Clean up resources
             if interview_id in self.audio_buffers:
                 del self.audio_buffers[interview_id]
             
@@ -107,18 +101,15 @@ class RealtimePipelineService:
         
         pipeline = self.active_pipelines[interview_id]
         
-        # Check if pipeline is active
         if pipeline["status"] != "active":
             return {"error": "Pipeline is not active"}
         
-        # Validate audio chunk early
         if audio_chunk is None:
             logger.warning(f"Received None audio chunk for interview {interview_id}")
             pipeline["stats"]["errors"] += 1
             return {"error": "Audio chunk is None"}
         
         try:
-            # Use lock to prevent concurrent processing
             async with self.processing_locks[interview_id]:
                 return await self._process_chunk_internal(
                     interview_id, audio_chunk, websocket_callback
@@ -152,27 +143,21 @@ class RealtimePipelineService:
             logger.warning(f"Received empty audio chunk for interview {interview_id}")
             return {"status": "empty_chunk", "buffer_size": len(buffer)}
         
-        # Add chunk to buffer
         buffer.extend(audio_chunk)
         pipeline["stats"]["chunks_processed"] += 1
         
-        # Check if we have enough audio to process
         if len(buffer) < self.min_chunk_size and len(buffer) < self.max_buffer_size:
             return {"status": "buffering", "buffer_size": len(buffer)}
         
-        # Extract audio data for processing
         audio_data = bytes(buffer)
-        buffer.clear()  # Clear buffer after extracting
+        buffer.clear()
         
-        # Skip processing if chunk is too small (likely silence/noise)
         if len(audio_data) < self.min_chunk_size:
             return {"status": "skipped", "reason": "chunk_too_small"}
         
-        # Mark as processing
         pipeline["is_processing"] = True
         
         try:
-            # Step 1: Speech-to-Text
             transcription_result = await self._perform_stt(interview_id, audio_data)
             
             if not transcription_result.get("text"):
@@ -182,7 +167,6 @@ class RealtimePipelineService:
                     "transcription": transcription_result
                 }
             
-            # Send partial transcription to frontend
             if websocket_callback and transcription_result.get("text"):
                 await websocket_callback({
                     "type": "transcription_update",
@@ -192,12 +176,10 @@ class RealtimePipelineService:
                     "timestamp": datetime.utcnow().isoformat()
                 })
             
-            # Step 2: Analyze response (only if significant text detected)
             text = transcription_result["text"].strip()
-            if len(text.split()) >= 2:  # At least 2 words
+            if len(text.split()) >= 2:
                 analysis_result = await self._perform_analysis(interview_id, text)
-                
-                # Send analysis to frontend
+           
                 if websocket_callback and analysis_result:
                     await websocket_callback({
                         "type": "response_analysis",
@@ -206,11 +188,9 @@ class RealtimePipelineService:
                         "timestamp": datetime.utcnow().isoformat()
                     })
                 
-                # Step 3: Generate AI response/feedback
                 ai_response = await self._generate_ai_response(interview_id, text, analysis_result)
                 
                 if ai_response and ai_response.get("text"):
-                    # Step 4: Text-to-Speech for AI response
                     await self._stream_tts_response(
                         interview_id, ai_response["text"], websocket_callback
                     )
@@ -234,18 +214,15 @@ class RealtimePipelineService:
     async def _perform_stt(self, interview_id: str, audio_data: bytes) -> Dict[str, Any]:
         """Perform speech-to-text using available services"""
         try:
-            # Try ElevenLabs first
             if "elevenlabs" in self.services and self.services["elevenlabs"].is_available():
                 result = await self.services["elevenlabs"].transcribe_audio_stream(audio_data)
                 if result.get("text"):
                     return result
             
-            # Fallback to Whisper STT
             if "stt" in self.services and self.services["stt"].is_available():
                 result = await self.services["stt"].transcribe_audio(audio_data)
                 return result
             
-            # Mock fallback
             return {
                 "text": "",
                 "confidence": 0.0,
@@ -257,13 +234,12 @@ class RealtimePipelineService:
             return {"text": "", "confidence": 0.0, "error": str(e)}
     
     async def _perform_analysis(self, interview_id: str, text: str) -> Optional[Dict[str, Any]]:
-        """Analyze candidate response"""
+        """Analyze candidate response using available AI or the InterviewAnalysisMock.analyze_response"""
         try:
             pipeline = self.active_pipelines[interview_id]
             context = pipeline["context"]
             current_question = pipeline.get("current_question", "")
             
-            # Try AI service first, fallback to mock
             if "ai" in self.services and self.services["ai"].is_available():
                 try:
                     analysis = await self.services["ai"].analyze_response(
@@ -274,9 +250,8 @@ class RealtimePipelineService:
                     if analysis and analysis.get("score") is not None:
                         return analysis
                 except Exception as ai_error:
-                    logger.warning(f"AI analysis failed, using mock: {ai_error}")
+                    logger.warning(f"AI analysis failed, will use mock analyzer: {ai_error}")
             
-            # Use enhanced mock analysis
             analysis = await self.mock_analyzer.analyze_response(
                 question=current_question,
                 response=text,
@@ -296,7 +271,6 @@ class RealtimePipelineService:
     ) -> Optional[Dict[str, Any]]:
         """Generate AI response/feedback based on analysis"""
         try:
-            # Simple response generation based on analysis score
             score = analysis.get("score", 5.0)
             
             if score >= 8.0:
@@ -333,18 +307,15 @@ class RealtimePipelineService:
             if not websocket_callback:
                 return
             
-            # Use ElevenLabs TTS if available
             if "tts" in self.services:
                 tts_service = self.services["tts"]
                 
-                # Start streaming audio generation
                 await websocket_callback({
                     "type": "audio_start",
                     "text": text,
                     "timestamp": datetime.utcnow().isoformat()
                 })
                 
-                # Stream audio chunks
                 chunk_count = 0
                 async for audio_chunk in tts_service.synthesize_speech_stream(text):
                     await websocket_callback({
@@ -355,7 +326,6 @@ class RealtimePipelineService:
                     })
                     chunk_count += 1
                 
-                # End streaming
                 await websocket_callback({
                     "type": "audio_end",
                     "total_chunks": chunk_count,
