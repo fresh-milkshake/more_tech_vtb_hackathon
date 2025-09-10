@@ -3,3 +3,4 @@ prototype/
 data/
 
 node_modules
+.env
